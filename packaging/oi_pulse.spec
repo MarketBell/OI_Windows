@@ -9,9 +9,20 @@
 # absolute paths from the project root (the parent of packaging/).
 
 import os
+from PyInstaller.utils.hooks import collect_submodules, collect_data_files
+
 ROOT = os.path.abspath(os.path.join(SPECPATH, os.pardir))
 
 block_cipher = None
+
+# selenium + kiteconnect import many of their submodules dynamically, so static
+# analysis misses them (e.g. selenium.webdriver.chrome.options). Pull them ALL in.
+hidden = ['pyotp', 'flask', 'jinja2', 'werkzeug', 'token_manager', 'license_manager']
+hidden += collect_submodules('selenium')
+hidden += collect_submodules('kiteconnect')
+
+# Any package data files selenium ships (e.g. bundled JS/config).
+extra_datas = collect_data_files('selenium')
 
 a = Analysis(
     [os.path.join(ROOT, 'app.py')],
@@ -21,19 +32,8 @@ a = Analysis(
     datas=[
         (os.path.join(ROOT, 'templates'), 'templates'),
         (os.path.join(ROOT, 'static'), 'static'),
-    ],
-    # Modules PyInstaller can miss by static analysis.
-    hiddenimports=[
-        'kiteconnect',
-        'pyotp',
-        'selenium',
-        'selenium.webdriver',
-        'flask',
-        'jinja2',
-        'werkzeug',
-        'token_manager',
-        'license_manager',
-    ],
+    ] + extra_datas,
+    hiddenimports=hidden,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
