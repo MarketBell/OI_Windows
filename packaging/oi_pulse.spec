@@ -4,17 +4,23 @@
 #
 # onedir (not onefile) is used because the app is a Flask server with template/static
 # data files and Selenium — onedir is far more reliable for those.
+#
+# PyInstaller resolves paths relative to THIS spec file (packaging/), so we build
+# absolute paths from the project root (the parent of packaging/).
+
+import os
+ROOT = os.path.abspath(os.path.join(SPECPATH, os.pardir))
 
 block_cipher = None
 
 a = Analysis(
-    ['app.py'],
-    pathex=[],
+    [os.path.join(ROOT, 'app.py')],
+    pathex=[ROOT],
     binaries=[],
     # Ship the web UI assets alongside the code.
     datas=[
-        ('templates', 'templates'),
-        ('static', 'static'),
+        (os.path.join(ROOT, 'templates'), 'templates'),
+        (os.path.join(ROOT, 'static'), 'static'),
     ],
     # Modules PyInstaller can miss by static analysis.
     hiddenimports=[
