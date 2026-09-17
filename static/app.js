@@ -1,6 +1,7 @@
 let state = { rows: [], settings: {} };
 let visibleRows = [];
 let visibleFullDayRows = [];
+let credPrompted = false;
 const $ = id => document.getElementById(id);
 const fmt = value => value == null ? '—' : Number(value).toFixed(2);
 
@@ -91,6 +92,7 @@ function render(data) {
   $('status').textContent = settings.zerodha_id ? '● ID saved: ' + settings.zerodha_id : '● Select Zerodha ID';
   $('zerodhaId').innerHTML = '<option value="">Select ID</option>' + data.accounts.map(id => `<option value="${esc(id)}">${esc(id)}</option>`).join('');
   $('zerodhaId').value = settings.zerodha_id || '';
+  if (!data.accounts.length && !credPrompted) { credPrompted = true; openCredForm(); }
   $('instrument').value = settings.instrument;
   $('expiry').value = settings.expiry_rank;
   $('strikes').value = settings.strike_count;
@@ -130,6 +132,22 @@ function downloadCsv() {
   link.href = URL.createObjectURL(new Blob([lines.join('\n')],{type:'text/csv'}));
   link.download = `${state.settings.instrument}_OI_${new Date().toISOString().slice(0,10)}.csv`;
   link.click(); URL.revokeObjectURL(link.href);
+}
+
+function openCredForm() { $('credError').classList.add('hidden'); $('credModal').classList.remove('hidden'); }
+function closeCredForm() { $('credModal').classList.add('hidden'); }
+async function saveCredentials() {
+  const body = {
+    zerodha_id: $('credId').value, api_key: $('credApiKey').value, api_secret: $('credApiSecret').value,
+    username: $('credUsername').value, password: $('credPassword').value, totp_secret: $('credTotp').value
+  };
+  try {
+    $('credError').classList.add('hidden');
+    await api('/api/credentials', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    ['credId','credApiKey','credApiSecret','credUsername','credPassword','credTotp'].forEach(id => $(id).value = '');
+    closeCredForm();
+    await load();
+  } catch (error) { $('credError').textContent = error.message; $('credError').classList.remove('hidden'); }
 }
 
 load(); setInterval(load,15000);

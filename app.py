@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import atexit
+import json
 import os
 import sqlite3
 import threading
@@ -273,6 +274,33 @@ def api_regenerate_token():
             raise RuntimeError("Save a Zerodha ID first")
         TOKEN_MANAGER.client(zerodha_id, force_new=True)
         return jsonify({"ok": True})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 500
+
+
+@app.post("/api/credentials")
+def api_credentials():
+    try:
+        payload = request.get_json(force=True)
+        account_id = str(payload.get("zerodha_id", "")).strip().upper()
+        required = ("api_key", "api_secret", "username", "password", "totp_secret")
+        entry = {key: str(payload.get(key, "")).strip() for key in required}
+        if not account_id:
+            return jsonify({"ok": False, "error": "Zerodha ID is required."}), 400
+        missing = [key for key in required if not entry[key]]
+        if missing:
+            return jsonify({"ok": False, "error": "All fields are required: " + ", ".join(missing)}), 400
+        data = {}
+        if CREDENTIALS_PATH.exists():
+            try:
+                loaded = json.loads(CREDENTIALS_PATH.read_text(encoding="utf-8"))
+                if isinstance(loaded, dict):
+                    data = loaded
+            except Exception:
+                data = {}
+        data[account_id] = entry
+        CREDENTIALS_PATH.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        return jsonify({"ok": True, "accounts": TOKEN_MANAGER.accounts()})
     except Exception as exc:
         return jsonify({"ok": False, "error": str(exc)}), 500
 
