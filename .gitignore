@@ -1,5 +1,7 @@
 # Secrets & local runtime — NEVER commit
 zerodha_credentials.json
+broker_credentials.json
+license.json
 *.db
 oi_pulse.db
 .env

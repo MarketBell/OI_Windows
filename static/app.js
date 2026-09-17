@@ -89,10 +89,10 @@ function render(data) {
   state = data;
   const settings = data.settings;
   $('status').className = 'status online';
-  $('status').textContent = settings.zerodha_id ? '● ID saved: ' + settings.zerodha_id : '● Select Zerodha ID';
+  $('status').textContent = !data.license_set ? '● License required' : (settings.zerodha_id ? '● ID saved: ' + settings.zerodha_id : '● Select Zerodha ID');
   $('zerodhaId').innerHTML = '<option value="">Select ID</option>' + data.accounts.map(id => `<option value="${esc(id)}">${esc(id)}</option>`).join('');
   $('zerodhaId').value = settings.zerodha_id || '';
-  if (!data.accounts.length && !credPrompted) { credPrompted = true; openCredForm(); }
+  if ((!data.accounts.length || !data.license_set) && !credPrompted) { credPrompted = true; openCredForm(); }
   $('instrument').value = settings.instrument;
   $('expiry').value = settings.expiry_rank;
   $('strikes').value = settings.strike_count;
@@ -137,14 +137,23 @@ function downloadCsv() {
 function openCredForm() { $('credError').classList.add('hidden'); $('credModal').classList.remove('hidden'); }
 function closeCredForm() { $('credModal').classList.add('hidden'); }
 async function saveCredentials() {
-  const body = {
-    zerodha_id: $('credId').value, api_key: $('credApiKey').value, api_secret: $('credApiSecret').value,
-    username: $('credUsername').value, password: $('credPassword').value, totp_secret: $('credTotp').value
-  };
+  const licenseKey = $('credLicense').value.trim();
+  const credFields = ['credId','credApiKey','credApiSecret','credUsername','credPassword','credTotp'];
+  const anyCred = credFields.some(id => $(id).value.trim());
   try {
     $('credError').classList.add('hidden');
-    await api('/api/credentials', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
-    ['credId','credApiKey','credApiSecret','credUsername','credPassword','credTotp'].forEach(id => $(id).value = '');
+    if (!licenseKey && !anyCred) throw Error('Enter your license key and/or your account details.');
+    if (licenseKey) {
+      await api('/api/license', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({license_key: licenseKey})});
+    }
+    if (anyCred) {
+      const body = {
+        zerodha_id: $('credId').value, api_key: $('credApiKey').value, api_secret: $('credApiSecret').value,
+        username: $('credUsername').value, password: $('credPassword').value, totp_secret: $('credTotp').value
+      };
+      await api('/api/credentials', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    }
+    credFields.concat('credLicense').forEach(id => $(id).value = '');
     closeCredForm();
     await load();
   } catch (error) { $('credError').textContent = error.message; $('credError').classList.remove('hidden'); }

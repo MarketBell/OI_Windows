@@ -13,6 +13,7 @@ from pathlib import Path
 from flask import Flask, jsonify, render_template, request
 from kiteconnect import KiteConnect
 from token_manager import TokenManager
+import license_manager
 
 APP_DIR = Path(__file__).resolve().parent
 DB_PATH = APP_DIR / "oi_pulse.db"
@@ -74,11 +75,24 @@ def init_db() -> None:
         conn.execute("UPDATE settings SET interval_minutes=1 WHERE id=1")
 
 
+_account_id_cache: dict[str, str] = {}
+
+
 def kite() -> KiteConnect:
     zerodha_id = settings().get("zerodha_id", "").strip()
     if not zerodha_id:
         raise RuntimeError("Select and save a Zerodha ID on the dashboard first")
-    return TOKEN_MANAGER.client(zerodha_id)
+    client = TOKEN_MANAGER.client(zerodha_id)
+    account_id = _account_id_cache.get(zerodha_id)
+    if not account_id:
+        try:
+            account_id = str(client.profile().get("user_id", "")).strip()
+        except Exception:
+            account_id = ""
+        account_id = account_id or zerodha_id
+        _account_id_cache[zerodha_id] = account_id
+    license_manager.ensure_valid(account_id)
+    return client
 
 
 def settings() -> dict:
@@ -206,7 +220,7 @@ def dashboard_data() -> dict:
     summary = None
     if result:
         summary = {"ce_first_to_latest": result[-1]["call_oi"] - result[0]["call_oi"], "pe_first_to_latest": result[-1]["put_oi"] - result[0]["put_oi"], "latest": result[-1]}
-    return {"settings": cfg, "rows": result, "summary": summary, "credential_file": str(CREDENTIALS_PATH), "accounts": TOKEN_MANAGER.accounts()}
+    return {"settings": cfg, "rows": result, "summary": summary, "credential_file": str(CREDENTIALS_PATH), "accounts": TOKEN_MANAGER.accounts(), "license_set": license_manager.is_set()}
 
 
 def worker() -> None:
@@ -301,6 +315,19 @@ def api_credentials():
         data[account_id] = entry
         CREDENTIALS_PATH.write_text(json.dumps(data, indent=2), encoding="utf-8")
         return jsonify({"ok": True, "accounts": TOKEN_MANAGER.accounts()})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 500
+
+
+@app.post("/api/license")
+def api_license():
+    try:
+        payload = request.get_json(force=True) or {}
+        key = str(payload.get("license_key", "")).strip()
+        if not key:
+            return jsonify({"ok": False, "error": "License key is required."}), 400
+        license_manager.save_license_key(key)
+        return jsonify({"ok": True})
     except Exception as exc:
         return jsonify({"ok": False, "error": str(exc)}), 500
 
