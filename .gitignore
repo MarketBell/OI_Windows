@@ -17,13 +17,16 @@ __pycache__/
 # Packaging / build output (PyInstaller, Inno Setup, PyArmor)
 build/
 dist/
+# ...but our checked-in build spec is source, not output:
 *.spec
+!packaging/oi_pulse.spec
 *.exe
 Output/
 Installer/Output/
 .pyarmor/
 pyarmor_runtime*/
 dist_obf/
+obfdist/
 obf/
 
 # Licensing / signing keys — NEVER commit
