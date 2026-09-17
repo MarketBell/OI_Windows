@@ -1,0 +1,37 @@
+# Secrets & local runtime — NEVER commit
+zerodha_credentials.json
+*.db
+oi_pulse.db
+.env
+
+# Python
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Packaging / build output (PyInstaller, Inno Setup, PyArmor)
+build/
+dist/
+*.spec
+*.exe
+Output/
+Installer/Output/
+.pyarmor/
+pyarmor_runtime*/
+dist_obf/
+obf/
+
+# Licensing / signing keys — NEVER commit
+*.pem
+*.key
+license_private*
+*.pfx
+
+# OS / editor
+Thumbs.db
+.DS_Store
+.vscode/
+.idea/
