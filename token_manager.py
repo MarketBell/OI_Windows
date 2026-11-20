@@ -83,14 +83,61 @@ class TokenManager:
         self._clients[account] = client
         return client
 
+    def _start_chrome(self) -> webdriver.Chrome:
+        """Launch Chrome robustly across end-user PCs.
+
+        The bare `webdriver.Chrome(ChromeOptions())` call is fragile: on many Windows
+        machines it fails with "session not created: DevToolsActivePort file doesn't
+        exist" — Chrome starts but crashes before the driver can attach. The fixes that
+        remove that failure are: a throwaway profile dir (so a Chrome the user already
+        has open can't cause a "profile in use" clash), --no-sandbox +
+        --disable-dev-shm-usage (sandbox/shared-memory crashes), and letting Chrome pick
+        the debugging port. We also fall back across headless modes, because
+        --headless=new crashes on some older Chrome builds.
+        """
+        import tempfile
+
+        show_login = os.getenv("OI_PULSE_SHOW_LOGIN", "0") == "1"
+        profile_dir = tempfile.mkdtemp(prefix="oi_pulse_chrome_")
+
+        def build_options(headless_mode: str | None) -> webdriver.ChromeOptions:
+            opts = webdriver.ChromeOptions()
+            if headless_mode:
+                opts.add_argument(headless_mode)
+            opts.add_argument("--disable-gpu")
+            opts.add_argument("--no-sandbox")
+            opts.add_argument("--disable-dev-shm-usage")
+            opts.add_argument("--remote-debugging-port=0")
+            opts.add_argument("--no-first-run")
+            opts.add_argument("--no-default-browser-check")
+            opts.add_argument("--disable-extensions")
+            opts.add_argument(f"--user-data-dir={profile_dir}")
+            opts.add_argument("--window-size=1280,900")
+            return opts
+
+        # If the user asked to watch the login, go visible only. Otherwise try modern
+        # headless, then legacy headless, then a visible window as a last resort — each
+        # is a known cure for the DevToolsActivePort launch failure on some machines.
+        attempts = [None] if show_login else ["--headless=new", "--headless", None]
+
+        last_error: Exception | None = None
+        for mode in attempts:
+            try:
+                driver = webdriver.Chrome(options=build_options(mode))
+                driver._oi_profile_dir = profile_dir  # type: ignore[attr-defined]
+                return driver
+            except Exception as exc:  # SessionNotCreatedException, WebDriverException…
+                last_error = exc
+        raise RuntimeError(
+            "Could not start Google Chrome for automatic login. Make sure Google Chrome "
+            "is installed and up to date (open Chrome → menu → Help → About Google "
+            "Chrome to update), then try again. "
+            f"Technical details: {last_error}"
+        )
+
     def _generate(self, cred: dict) -> str:
         kite = KiteConnect(api_key=cred["api_key"])
-        options = webdriver.ChromeOptions()
-        if os.getenv("OI_PULSE_SHOW_LOGIN", "0") != "1":
-            options.add_argument("--headless=new")
-        options.add_argument("--disable-gpu")
-        options.add_argument("--window-size=1280,900")
-        driver = webdriver.Chrome(options=options)
+        driver = self._start_chrome()
         wait = WebDriverWait(driver, 30)
         try:
             driver.get(kite.login_url())
@@ -113,4 +160,11 @@ class TokenManager:
         except Exception as exc:
             raise RuntimeError(f"Automatic Zerodha token generation failed: {exc}") from exc
         finally:
-            driver.quit()
+            profile_dir = getattr(driver, "_oi_profile_dir", None)
+            try:
+                driver.quit()
+            except Exception:
+                pass
+            if profile_dir:
+                import shutil
+                shutil.rmtree(profile_dir, ignore_errors=True)
