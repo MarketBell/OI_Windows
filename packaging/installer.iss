@@ -7,7 +7,7 @@
 ; admin rights or "read-only folder" errors. This needs no source changes.
 
 #define AppName "OI Pulse Dashboard"
-#define AppVersion "1.0.0"
+#define AppVersion "1.0.1"
 #define AppPublisher "Billionit Wealth"
 #define AppExeName "OI Pulse Dashboard.exe"
 
