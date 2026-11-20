@@ -31,9 +31,18 @@ function filteredRows() {
   const end = toMinute($('endTime').value || '15:30');
   const frequency = Number($('frequency').value || 3);
   if (end < start) throw Error('End time must be after start time');
-  return state.rows.filter(row => {
+  const inWindow = state.rows.filter(row => {
     const minute = toMinute(row.time);
-    return minute >= start && minute <= end && (minute - start) % frequency === 0;
+    return minute >= start && minute <= end;
+  });
+  // Show readings that land on the N-minute display grid, but ALWAYS keep the most
+  // recent reading in the window — otherwise a one-off "Capture now" whose timestamp
+  // doesn't align to the grid (e.g. 12:25 with a 3-minute frequency) silently vanishes
+  // and the dashboard looks empty even though data was captured.
+  const latest = inWindow[inWindow.length - 1];
+  return inWindow.filter(row => {
+    const minute = toMinute(row.time);
+    return (minute - start) % frequency === 0 || row === latest;
   });
 }
 
