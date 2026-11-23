@@ -53,8 +53,9 @@ Either open `packaging\installer.iss` in the **Inno Setup Compiler** and press *
 ISCC.exe packaging\installer.iss
 ```
 
-Output: **`packaging\Output\OI-Pulse-Dashboard-Setup-1.0.0.exe`** — this single file is what you
-give buyers.
+Output: **`packaging\Output\OI-Pulse-Dashboard-Setup-<AppVersion>.exe`** — this single file is what
+you give buyers. `<AppVersion>` is whatever is set in `installer.iss` (currently **1.0.1**), e.g.
+`OI-Pulse-Dashboard-Setup-1.0.1.exe`.
 
 The installer:
 - installs **per-user** into `%LOCALAPPDATA%\OI Pulse Dashboard` (no admin prompt, and the folder
